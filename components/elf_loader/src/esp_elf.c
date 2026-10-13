@@ -39,6 +39,8 @@
 #define FS_PATH                     "/storage"
 #endif
 
+#define ELF_EXEC_STAGE_CHUNK        (512)
+
 static const char *TAG = "ELF";
 static esp_elf_symbol_table_t *g_symbol_tables[SYMBOL_TABLES_NO];
 static _Atomic(symbol_resolver) current_resolver = elf_find_sym_default;
@@ -77,6 +79,149 @@ static int elf_source_read(const elf_source_t *src, size_t offset, void *buf, si
     }
 
     return src->read(src->ctx, offset, buf, len);
+}
+
+/**
+ * @brief Write bytes into executable memory using 32-bit accesses only.
+ *
+ * ESP32-S3 instruction RAM handed out for MALLOC_CAP_EXEC is reachable only
+ * through 32-bit aligned loads and stores; any byte- or half-word-wide access
+ * raises a LoadStoreError and panics. Byte sources and libc copy routines
+ * emit sub-word accesses for unaligned lengths, so exec memory cannot be
+ * filled with memcpy. @p dst and @p src may have any alignment; the leading
+ * and trailing partial words are written with read-modify-write so the bytes
+ * outside the range are preserved.
+ *
+ * The caller must guarantee that the 32-bit word containing the last byte of
+ * the range lies entirely inside the exec allocation, otherwise the trailing
+ * read-modify-write touches memory past the block; size exec allocations with
+ * ELF_ALIGN(len, 4).
+ *
+ * @param dst - Executable destination (MALLOC_CAP_EXEC)
+ * @param src - Byte-addressable source (e.g. DRAM)
+ * @param len - Number of bytes to copy
+ */
+static void elf_exec_write(void *dst, const void *src, size_t len)
+{
+    uintptr_t d = (uintptr_t)dst;
+    const uint8_t *s = (const uint8_t *)src;
+
+    if (!len) {
+        return;
+    }
+
+    if (d & 0x3) {
+        uint32_t *word = (uint32_t *)(d & ~(uintptr_t)0x3);
+        uint32_t shift = (uint32_t)(d & 0x3) * 8;
+        size_t head = 4 - (d & 0x3);
+        uint32_t value = 0;
+
+        if (head > len) {
+            head = len;
+        }
+
+        for (size_t i = 0; i < head; i++) {
+            value |= (uint32_t)s[i] << (shift + (uint32_t)i * 8);
+        }
+
+        *word = (*word & ~((0xffffffffu >> ((4 - head) * 8)) << shift)) | value;
+
+        d += head;
+        s += head;
+        len -= head;
+    }
+
+    while (len >= 4) {
+        uint32_t value = (uint32_t)s[0] | ((uint32_t)s[1] << 8) |
+                         ((uint32_t)s[2] << 16) | ((uint32_t)s[3] << 24);
+        *(uint32_t *)d = value;
+        d += 4;
+        s += 4;
+        len -= 4;
+    }
+
+    if (len) {
+        uint32_t *word = (uint32_t *)d;
+        uint32_t value = 0;
+
+        for (size_t i = 0; i < len; i++) {
+            value |= (uint32_t)s[i] << ((uint32_t)i * 8);
+        }
+
+        *word = (*word & ~(0xffffffffu >> ((4 - len) * 8))) | value;
+    }
+}
+
+/**
+ * @brief Zero executable memory using 32-bit stores only.
+ *
+ * Companion to elf_exec_write() for the same ESP32-S3 IRAM constraint. The
+ * whole 32-bit words covering [@p dst, @p dst + @p len) are cleared, so the
+ * first and last words touched must lie inside the exec allocation; size exec
+ * allocations with ELF_ALIGN(len, 4) and keep @p dst 32-bit aligned.
+ *
+ * @param dst - Executable destination (MALLOC_CAP_EXEC)
+ * @param len - Number of bytes to clear
+ */
+static void elf_exec_zero(void *dst, size_t len)
+{
+    uintptr_t first = (uintptr_t)dst & ~(uintptr_t)0x3;
+    uintptr_t end = ((uintptr_t)dst + len + 0x3) & ~(uintptr_t)0x3;
+
+    for (uint32_t *word = (uint32_t *)first; (uintptr_t)word < end; word++) {
+        *word = 0;
+    }
+}
+
+/**
+ * @brief Load a code section into executable memory.
+ *
+ * Reads @p size bytes from @p src at @p offset into @p dst, which must point
+ * to executable memory (MALLOC_CAP_EXEC). The bytes are staged through a
+ * byte-addressable DRAM buffer and written with elf_exec_write() so that no
+ * sub-word store ever targets exec memory. @p dst may have any alignment, but
+ * the exec allocation must cover ELF_ALIGN(@p size, 4) bytes for the trailing
+ * read-modify-write of elf_exec_write().
+ *
+ * @param src    - ELF byte source
+ * @param offset - File offset of the section contents
+ * @param dst    - Executable destination buffer
+ * @param size   - Number of section bytes present in the file
+ *
+ * @return 0 on success or a negative errno on failure.
+ */
+static int elf_load_exec_section(const elf_source_t *src, size_t offset,
+                                 void *dst, size_t size)
+{
+    uint8_t *stage;
+    uint8_t *out = (uint8_t *)dst;
+    size_t done = 0;
+    int ret = 0;
+
+    if (!size) {
+        return 0;
+    }
+
+    stage = esp_elf_malloc(ELF_EXEC_STAGE_CHUNK, false);
+    if (!stage) {
+        return -ENOMEM;
+    }
+
+    while (done < size) {
+        size_t chunk = MIN(size - done, (size_t)ELF_EXEC_STAGE_CHUNK);
+
+        ret = elf_source_read(src, offset + done, stage, chunk);
+        if (ret) {
+            break;
+        }
+
+        elf_exec_write(out + done, stage, chunk);
+        done += chunk;
+    }
+
+    esp_elf_free(stage);
+
+    return ret;
 }
 
 /**
@@ -343,8 +488,8 @@ static int esp_elf_load_section(esp_elf_t *elf, const elf_source_t *src,
      * in the file are fetched; the padding stays zero and is never executed. */
 
     elf->sec[ELF_SEC_TEXT].addr = (Elf32_Addr)elf->ptext;
-    ret = elf_source_read(src, elf->sec[ELF_SEC_TEXT].offset, elf->ptext,
-                          text_file_size);
+    ret = elf_load_exec_section(src, elf->sec[ELF_SEC_TEXT].offset, elf->ptext,
+                                text_file_size);
     if (ret) {
         goto fail;
     }
@@ -467,7 +612,7 @@ static int esp_elf_load_segment(esp_elf_t *elf, const elf_source_t *src,
             goto fail;
         }
 
-        if (first_segment == true) {
+        if (first_segment == false) {
             vaddr_s = phdr[i].vaddr;
             vaddr_e = phdr[i].vaddr + phdr[i].memsz;
             first_segment = true;
@@ -510,21 +655,21 @@ static int esp_elf_load_segment(esp_elf_t *elf, const elf_source_t *src,
     }
 
     elf->svaddr = vaddr_s;
-    elf->psegment = esp_elf_malloc(size, true);
+    elf->psegment = esp_elf_malloc(ELF_ALIGN(size, 4), true);
     if (!elf->psegment) {
         ret = -ENOMEM;
         goto fail;
     }
 
-    memset(elf->psegment, 0, size);
+    elf_exec_zero(elf->psegment, size);
 
     /* Dump "PT_LOAD" from ELF to memory space */
 
     for (int i = 0; i < ehdr->phnum; i++) {
         if (phdr[i].type == PT_LOAD) {
-            ret = elf_source_read(src, phdr[i].offset,
-                                  (uint8_t *)elf->psegment + phdr[i].vaddr - vaddr_s,
-                                  phdr[i].filesz);
+            uint8_t *dst = (uint8_t *)elf->psegment + phdr[i].vaddr - vaddr_s;
+
+            ret = elf_load_exec_section(src, phdr[i].offset, dst, phdr[i].filesz);
             if (ret) {
                 esp_elf_free(elf->psegment);
                 elf->psegment = NULL;
@@ -532,7 +677,7 @@ static int esp_elf_load_segment(esp_elf_t *elf, const elf_source_t *src,
             }
 
             ESP_LOGD(TAG, "Copy segment[%d], mem_addr: %p, size: 0x%08x",
-                     i, (void *)((uint8_t *)elf->psegment + phdr[i].vaddr - vaddr_s), phdr[i].filesz);
+                     i, (void *)dst, phdr[i].filesz);
         }
     }
 
