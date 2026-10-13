@@ -29,6 +29,36 @@ typedef struct elf_file {
 typedef const struct esp_elfsym esp_elf_symbol_table_t;
 
 /**
+ * @brief Randomly-accessible ELF byte source.
+ *
+ * The loader only needs to read the ELF image by offset, so callers can back an
+ * image with anything (a memory buffer, a file on a filesystem, a network
+ * stream). This lets relocate() avoid holding the whole image in RAM.
+ *
+ * All offsets and sizes are relative to the start of the ELF image.
+ */
+typedef struct elf_source {
+    /**
+     * @brief Total size of the image in bytes, or (size_t)-1 if unknown.
+     */
+    size_t (*size)(void *ctx);
+
+    /**
+     * @brief Read @p len bytes at @p offset into @p buf.
+     *
+     * @return 0 on success, or a negative errno on failure.
+     */
+    int (*read)(void *ctx, size_t offset, void *buf, size_t len);
+
+    /**
+     * @brief Release resources owned by the source. Optional, may be NULL.
+     */
+    void (*close)(void *ctx);
+
+    void *ctx;                          /*!< Opaque context passed to the callbacks */
+} elf_source_t;
+
+/**
  * @brief Open and load an ELF file into memory.
  *
  * @param file - Pointer to elf_file_t structure to store loaded file content
@@ -82,8 +112,24 @@ int esp_elf_init(esp_elf_t *elf);
  * @param pbuf - ELF data buffer
  *
  * @return ESP_OK if success or other if failed.
+ *
+ * @note The whole image must be resident in @p pbuf.
  */
 int esp_elf_relocate(esp_elf_t *elf, const uint8_t *pbuf);
+
+/**
+ * @brief Decode and relocate ELF data read from an ELF source.
+ *
+ * Identical to esp_elf_relocate() except the image is read on demand through
+ * @p src, so the full image does not need to be resident. Only the ELF headers,
+ * the section/relocation tables and the loaded sections are ever held in RAM.
+ *
+ * @param elf - ELF object pointer
+ * @param src - ELF byte source
+ *
+ * @return ESP_OK if success or other if failed.
+ */
+int esp_elf_relocate_source(esp_elf_t *elf, const elf_source_t *src);
 
 /**
  * @brief Request running relocated ELF function.
