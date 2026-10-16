@@ -417,10 +417,6 @@
   - "components/touch/touch_button/**/*"
   - "tools/cmake_utilities/package_manager.cmake"
 
-.patterns-components_touch_touch_button_sensor: &patterns-components_touch_touch_button_sensor
-  - "components/touch/touch_button_sensor/**/*"
-  - "tools/cmake_utilities/package_manager.cmake"
-
 .patterns-components_touch_touch_slider_sensor: &patterns-components_touch_touch_slider_sensor
   - "components/touch/touch_slider_sensor/**/*"
   - "tools/cmake_utilities/package_manager.cmake"
@@ -586,7 +582,6 @@
   - "components/sensors/sensor_hub/include/iot_sensor_hub.h"
   - "components/sensors/sensor_hub/include/sensor_type.h"
   - "components/spi_bus/include/spi_bus.h"
-  - "components/touch/touch_button_sensor/include/touch_button_sensor.h"
   - "components/touch/touch_proximity_sensor/include/touch_proximity_sensor.h"
   - "components/touch/touch_slider_sensor/include/touch_slider_sensor.h"
   - "components/usb/esp_msc_ota/include/esp_msc_ota.h"
@@ -998,11 +993,8 @@
   - "examples/relinker/**/*"
   - "tools/cmake_utilities/scripts/relinker/**/*"
 
-.patterns-example_ragtime_panthera_follower: &patterns-example_ragtime_panthera_follower
-  - "examples/robot/ragtime_panthera/follower/**/*"
-
-.patterns-example_robot_ragtime_panthera_leader: &patterns-example_robot_ragtime_panthera_leader
-  - "examples/robot/ragtime_panthera/leader/**/*"
+.patterns-example_robot_ragtime_panthera: &patterns-example_robot_ragtime_panthera
+  - "examples/robot/ragtime_panthera/**/*"
 
 .patterns-example_weaver_led_light: &patterns-example_weaver_led_light
   - "examples/weaver/led_light/**/*"
@@ -2155,9 +2147,6 @@
       changes: *patterns-build_system
     - <<: *if-dev-push
       changes: *patterns-example_touch_touch_button
-    - <<: *if-dev-push
-      changes: *patterns-components_touch_touch_button_sensor
-
 .rules:build:example_touch_touch_proximity:
   rules:
     - <<: *if-protected
@@ -2558,7 +2547,7 @@
     - <<: *if-dev-push
       changes: *patterns-example_relinker
 
-.rules:build:example_ragtime_panthera_follower:
+.rules:build:example_robot_ragtime_panthera:
   rules:
     - <<: *if-protected
     - <<: *if-label-build
@@ -2566,17 +2555,7 @@
     - <<: *if-dev-push
       changes: *patterns-build_system
     - <<: *if-dev-push
-      changes: *patterns-example_ragtime_panthera_follower
-
-.rules:build:example_robot_ragtime_panthera_leader:
-  rules:
-    - <<: *if-protected
-    - <<: *if-label-build
-    - <<: *if-trigger-job
-    - <<: *if-dev-push
-      changes: *patterns-build_system
-    - <<: *if-dev-push
-      changes: *patterns-example_robot_ragtime_panthera_leader
+      changes: *patterns-example_robot_ragtime_panthera
 
 .rules:build:example_weaver_imu_gesture:
   rules:
@@ -3629,17 +3608,6 @@
       changes: *patterns-build_system
     - <<: *if-dev-push
       changes: *patterns-components_touch_touch_button
-
-.rules:build:components_touch_touch_button_sensor_test_apps:
-  rules:
-    - <<: *if-protected
-    - <<: *if-label-build
-    - <<: *if-label-target_test
-    - <<: *if-trigger-job
-    - <<: *if-dev-push
-      changes: *patterns-build_system
-    - <<: *if-dev-push
-      changes: *patterns-components_touch_touch_button_sensor
 
 .rules:build:components_touch_touch_slider_sensor_test_apps:
   rules:

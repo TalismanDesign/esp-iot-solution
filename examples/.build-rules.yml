@@ -423,21 +423,26 @@ examples/usb/device/usb_dongle:
 
 examples/touch/touch_button:
   enable:
-    - if: SOC_TOUCH_SENSOR_SUPPORTED == 1
+    - if: IDF_TARGET in ["esp32s2", "esp32s3", "esp32p4"] and (IDF_VERSION_MAJOR == 5 and IDF_VERSION_MINOR == 5)
+    - if: IDF_TARGET in ["esp32s2", "esp32s3", "esp32p4"] and (IDF_VERSION_MAJOR == 6 and IDF_VERSION_MINOR == 0)
+    - if: IDF_TARGET in ["esp32s2", "esp32s3", "esp32p4", "esp32h4", "esp32s31"] and (IDF_VERSION_MAJOR == 6 and IDF_VERSION_MINOR >= 1)
 
 examples/touch/touch_button_sensor:
   enable:
-    - if: IDF_TARGET in ["esp32", "esp32s2", "esp32s3"] and (IDF_VERSION_MAJOR == 5 and IDF_VERSION_MINOR < 4)
-    - if: IDF_TARGET in ["esp32", "esp32s2", "esp32s3", "esp32p4"] and (IDF_VERSION_MAJOR == 5 and IDF_VERSION_MINOR >= 4)
+    - if: IDF_TARGET in ["esp32s2", "esp32s3", "esp32p4"] and (IDF_VERSION_MAJOR == 5 and IDF_VERSION_MINOR == 5)
+    - if: IDF_TARGET in ["esp32s2", "esp32s3", "esp32p4"] and (IDF_VERSION_MAJOR == 6 and IDF_VERSION_MINOR == 0)
+    - if: IDF_TARGET in ["esp32s2", "esp32s3", "esp32p4", "esp32h4", "esp32s31"] and (IDF_VERSION_MAJOR == 6 and IDF_VERSION_MINOR >= 1)
 
 examples/touch/touch_proximity:
   enable:
-    - if: IDF_TARGET in ["esp32s3"]
+    - if: IDF_TARGET in ["esp32s3"] and (IDF_VERSION_MAJOR == 5 and IDF_VERSION_MINOR >= 5)
+    - if: IDF_TARGET in ["esp32s3"] and (IDF_VERSION_MAJOR == 6 and IDF_VERSION_MINOR >= 0)
 
 examples/touch/touch_slider_sensor:
   enable:
-    - if: IDF_TARGET in ["esp32", "esp32s2", "esp32s3"] and (IDF_VERSION_MAJOR == 5 and IDF_VERSION_MINOR < 4)
-    - if: IDF_TARGET in ["esp32", "esp32s2", "esp32s3", "esp32p4"] and (IDF_VERSION_MAJOR == 5 and IDF_VERSION_MINOR >= 4)
+    - if: IDF_TARGET in ["esp32s2", "esp32s3", "esp32p4"] and (IDF_VERSION_MAJOR == 5 and IDF_VERSION_MINOR >= 5)
+    - if: IDF_TARGET in ["esp32s2", "esp32s3", "esp32p4"] and (IDF_VERSION_MAJOR == 6 and IDF_VERSION_MINOR == 0)
+    - if: IDF_TARGET in ["esp32s2", "esp32s3", "esp32p4", "esp32h4", "esp32s31"] and (IDF_VERSION_MAJOR == 6 and IDF_VERSION_MINOR >= 1)
 
 examples/ulp/lp_cpu/lp_environment_sensor:
   enable:
@@ -582,6 +587,7 @@ examples/elf_loader/elf_loader_example:
     - if: IDF_TARGET in ["esp32c6"] and (IDF_VERSION_MAJOR >= 5 and IDF_VERSION_MINOR >= 1)
     - if: IDF_TARGET in ["esp32c61"] and (IDF_VERSION_MAJOR >= 5 and IDF_VERSION_MINOR >= 5 and IDF_VERSION_PATCH >= 1)
     - if: IDF_TARGET in ["esp32s31"] and ((IDF_VERSION_MAJOR > 6) or (IDF_VERSION_MAJOR == 6 and IDF_VERSION_MINOR >= 1))
+    - if: IDF_TARGET in ["esp32c5"] and IDF_VERSION >= "5.5.2"
 
 examples/elf_loader/build_elf_file_example:
   enable:
@@ -590,6 +596,7 @@ examples/elf_loader/build_elf_file_example:
     - if: IDF_TARGET in ["esp32c6"] and (IDF_VERSION_MAJOR >= 5 and IDF_VERSION_MINOR >= 1)
     - if: IDF_TARGET in ["esp32c61"] and (IDF_VERSION_MAJOR >= 5 and IDF_VERSION_MINOR >= 5 and IDF_VERSION_PATCH >= 1)
     - if: IDF_TARGET in ["esp32s31"] and ((IDF_VERSION_MAJOR > 6) or (IDF_VERSION_MAJOR == 6 and IDF_VERSION_MINOR >= 1))
+    - if: IDF_TARGET in ["esp32c5"] and IDF_VERSION >= "5.5.2"
 
 examples/elf_loader/elf_embed_example:
   enable:
@@ -598,6 +605,7 @@ examples/elf_loader/elf_embed_example:
     - if: IDF_TARGET in ["esp32c6"] and (IDF_VERSION_MAJOR >= 5 and IDF_VERSION_MINOR >= 1)
     - if: IDF_TARGET in ["esp32c61"] and (IDF_VERSION_MAJOR >= 5 and IDF_VERSION_MINOR >= 5 and IDF_VERSION_PATCH >= 1)
     - if: IDF_TARGET in ["esp32s31"] and ((IDF_VERSION_MAJOR > 6) or (IDF_VERSION_MAJOR == 6 and IDF_VERSION_MINOR >= 1))
+    - if: IDF_TARGET in ["esp32c5"] and IDF_VERSION >= "5.5.2"
 
 examples/elf_loader/elf_console_example:
   enable:
@@ -606,19 +614,12 @@ examples/elf_loader/elf_console_example:
     - if: IDF_TARGET in ["esp32c6"] and (IDF_VERSION_MAJOR >= 5 and IDF_VERSION_MINOR >= 1)
     - if: IDF_TARGET in ["esp32c61"] and (IDF_VERSION_MAJOR >= 5 and IDF_VERSION_MINOR >= 5 and IDF_VERSION_PATCH >= 1)
     - if: IDF_TARGET in ["esp32s31"] and ((IDF_VERSION_MAJOR > 6) or (IDF_VERSION_MAJOR == 6 and IDF_VERSION_MINOR >= 1))
+    - if: IDF_TARGET in ["esp32c5"] and IDF_VERSION >= "5.5.2"
 
 examples/relinker:
   enable:
     - if: IDF_TARGET in ["esp32c2","esp32c3"]
 
-examples/robot/ragtime_panthera/follower:
+examples/robot/ragtime_panthera:
   enable:
-    - if: IDF_TARGET in ["esp32p4"] and (IDF_VERSION_MAJOR >= 5 and IDF_VERSION_MINOR >= 5)
-
-examples/robot/ragtime_panthera/follower/receiver:
-  enable:
-    - if: IDF_TARGET in ["esp32c6"] and (IDF_VERSION_MAJOR >= 5 and IDF_VERSION_MINOR >= 5)
-
-examples/robot/ragtime_panthera/leader:
-  enable:
-    - if: IDF_TARGET in ["esp32c3"] and (IDF_VERSION_MAJOR >= 5 and IDF_VERSION_MINOR >= 5)
+    - if: IDF_TARGET in ["esp32p4"] and (IDF_VERSION_MAJOR > 6 or (IDF_VERSION_MAJOR == 6 and IDF_VERSION_MINOR >= 1))
